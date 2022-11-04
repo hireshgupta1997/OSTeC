@@ -37,6 +37,7 @@ def main(args):
         for path in paths:
             # try: # To avoid detection errors on large datasets
             save_path = path.replace(source_dir, save_dir)
+            os.makedirs(save_dir, exist_ok=True)
             pkl_path = path.replace(ext,'.pkl')
             if not os.path.isfile(save_path.replace(ext, '_uv.'+ext)):
                 print('Started: ' + path)
@@ -53,7 +54,16 @@ def main(args):
                     img = menpo.image.Image(fitting['input'])
 
                 final_uv, results_dict = operator.run(img, fitting)
-                mio.export_image(final_uv, save_path.replace(ext,'_uv'+ext))
+                mio.export_image(final_uv, save_path.replace(ext, '_uv'+ext))
+                if 'face_mesh' in results_dict:
+                    from menpo3d.io.output.base import export_textured_mesh
+                    export_textured_mesh(results_dict['face_mesh'], save_path.replace(ext, '_mesh' + ".obj"))
+
+                    mtl_file_path = save_path.replace(ext, '_mesh' + ".mtl")
+                    file_name = os.path.basename(save_path)
+                    write_str = """newmtl FaceTexture\nmap_Kd %s""" % (file_name.replace(ext, '_uv'+ext))
+                    with open(mtl_file_path, 'w') as fw:
+                        fw.write(write_str)
                 if args.frontalize:
                     mio.export_image(results_dict['frontal'], save_path.replace(ext,'_frontal'+ext))
                 if args.pickle:

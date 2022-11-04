@@ -10,6 +10,61 @@ import time
 from utils.ganfit_camera import apply_camera_only3d, get_pose
 from utils.utils import *
 from core.arcface_handler import Arcface_Handler
+from menpo3d.io.output.mesh import obj_exporter 
+import numpy as np
+from skimage.io import imsave
+import os
+
+
+def write_obj_with_texture(obj_name, vertices, triangles, texture, uv_coords):
+    if obj_name.split('.')[-1] != 'obj':
+        obj_name = obj_name + '.obj'
+    mtl_name = obj_name.replace('.obj', '.mtl')
+    texture_name = obj_name.replace('.obj', '_texture.png')
+    
+    triangles = triangles.copy()
+    triangles += 1 # mesh lab start with 1
+    with open(obj_name, 'w') as f:
+        # first line: write mtlib(material library)
+        s = "mtllib {}\n".format(os.path.abspath(mtl_name))
+        f.write(s)
+
+        # write vertices
+        for i in range(vertices.shape[0]):
+            s = 'v {} {} {}\n'.format(vertices[i, 0], vertices[i, 1], vertices[i, 2])
+            f.write(s)
+        
+        # write uv coords
+        for i in range(uv_coords.shape[0]):
+            s = 'vt {} {}\n'.format(uv_coords[i,0], 1 - uv_coords[i,1])
+            f.write(s)
+
+        f.write("usemtl FaceTexture\n")
+
+        # write f: ver ind/ uv ind
+        for i in range(triangles.shape[0]):
+            # s = 'f {}/{} {}/{} {}/{}\n'.format(triangles[i,0], triangles[i,0], triangles[i,1], triangles[i,1], triangles[i,2], triangles[i,2])
+            s = 'f {}/{} {}/{} {}/{}\n'.format(triangles[i,2], triangles[i,2], triangles[i,1], triangles[i,1], triangles[i,0], triangles[i,0])
+            f.write(s)
+
+    # write mtl
+    with open(mtl_name, 'w') as f:
+        f.write("newmtl FaceTexture\n")
+        s = 'map_Kd {}\n'.format(os.path.abspath(texture_name)) # map to image
+        f.write(s)
+
+    # write texture as png
+    imsave(texture_name, texture)
+
+
+def save_textured_trimesh_to_obj(tmesh, obj_name):
+    vertices = tmesh.points
+    triangles = tmesh.trilist
+    texture = tmesh.texture
+    uv_coords =  tmesh.tcoords
+    write_obj_with_texture(obj_name, vertices, triangles, texture, uv_coords)
+
+
 
 class Face:
     def __init__(self, tmesh,
@@ -287,6 +342,9 @@ class Operator:
         tmesh = TexturedTriMesh(reconstruction_dict['vertices'], tcoords.points, img_uv_src,
                                 trilist=reconstruction_dict['trilist'])
         tmesh_masked = tmesh.from_mask(self.mask)
+        # import pdb
+        # pdb.set_trace()
+        save_textured_trimesh_to_obj(tmesh_masked, 'outs/abc.obj')
         tmesh_rotated = TexturedTriMesh(reconstruction_dict['vertices_rotated'], tmesh.tcoords.points, tmesh.texture,
                                 trilist=tmesh.trilist)
         view_angle_src = self.camera_tri_angle_src(tmesh_rotated)
@@ -484,6 +542,8 @@ class Operator:
 
         final_uv = results_dict[key]['final_uv']
         print('Done in %.2f secs' % (time.time() - start))
+
+        results_dict['face_mesh'] = face.tmesh_masked
 
         if self.args.frontalize:
             start = time.time()

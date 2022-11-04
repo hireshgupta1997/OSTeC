@@ -6,3 +6,9 @@ models/*
 results/*
 .stylegan2-cache/*
 samples/*
+
+__pycache__/
+*.log
+tmp*
+
+out*
